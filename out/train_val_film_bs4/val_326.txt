@@ -1,0 +1,7 @@
+Task10_03| Liver: 0.9392, Liver Tumor: 0.4885, 
+Task10_06| Lung Tumor: 0.3562, 
+Task10_07| Pancreas: 0.7884, Pancreas Tumor: 0.3315, 
+Task10_08| Hepatic Vessel: 0.5664, Hepatic Vessel Tumor: 0.5998, 
+Task10_09| Spleen: 0.9372, 
+Task10_10| Colon Tumor: 0.2944, 
+Average | Spleen: 0.9372, Liver: 0.9392, Pancreas: 0.7884, Hepatic Vessel: 0.5664, Liver Tumor: 0.4885, Pancreas Tumor: 0.3315, Hepatic Vessel Tumor: 0.5998, Lung Tumor: 0.3562, Colon Tumor: 0.2944, 

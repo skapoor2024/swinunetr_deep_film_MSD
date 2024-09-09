@@ -1,0 +1,11 @@
+01_Multi-Atlas_Labeling/img/img0002.nii.gz	01_Multi-Atlas_Labeling/label/label0002.nii.gz
+02_TCIA_Pancreas-CT/img/PANCREAS_0002.nii.gz	02_TCIA_Pancreas-CT/multiorgan_label/label0002.nii.gz
+03_CHAOS/ct/img/10_image.nii.gz	03_CHAOS/ct/liver_label/10_segmentation.nii.gz
+04_LiTS/img/liver_1.nii.gz	04_LiTS/label/liver_1.nii.gz
+05_KiTS/img/img0000.nii.gz	05_KiTS/label/label0000.nii.gz
+07_WORD/img/word_0001.nii.gz	07_WORD/label/word_0001.nii.gz
+08_AbdomenCT-1K/img/Case_00001_0000.nii.gz	08_AbdomenCT-1K/label/Case_00001.nii.gz
+09_AMOS/img/amos_0001.nii.gz	09_AMOS/label/amos_0001.nii.gz
+10_Decathlon/Task03_Liver/imagesTr/liver_0.nii.gz	10_Decathlon/Task03_Liver/labelsTr/liver_0.nii.gz
+12_CT-ORG/img/volume-0.nii.gz	12_CT-ORG/label/labels-0.nii.gz
+13_AbdomenCT-12organ/img/Organ12_0001_0000.nii.gz	13_AbdomenCT-12organ/label/Organ12_0001.nii.gz
