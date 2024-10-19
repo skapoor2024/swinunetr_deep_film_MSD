@@ -1,6 +1,6 @@
 """"
 Rewriting the data loader , loss and other functions here.
-Rewriting whole script lol
+Rewrote the  whole script due to directory name error lol!
 """
 
 from monai.transforms import (
@@ -23,6 +23,8 @@ from monai.transforms import (
     apply_transform,
     RandZoomd,
     RandCropByLabelClassesd,
+    Invertd,
+    SaveImaged
 )
 
 import h5py
@@ -42,21 +44,87 @@ from monai.transforms.io.array import LoadImage, SaveImage
 from monai.utils import GridSamplePadMode, ensure_tuple, ensure_tuple_rep
 from monai.data.image_reader import ImageReader
 from monai.utils.enums import PostFix
+import cc3d
+import fastremap
+from scipy import ndimage
+from monai.data import decollate_batch
 
 DEFAULT_POST_FIX = PostFix.meta()
 
-ORGAN_NAME = ['Spleen','Liver','Pancreas','Hepatic Vessel','Liver Tumor','Pancreas Tumor','Hepatic Vessel Tumor','Lung Tumor','Colon Tumor']
+ORGAN_NAME = ['Spleen', 'Right Kidney', 'Left Kidney', 'Gall Bladder', 'Esophagus', 
+                'Liver', 'Stomach', 'Aorta', 'Postcava', 'Portal Vein and Splenic Vein',
+                'Pancreas', 'Right Adrenal Gland', 'Left Adrenal Gland', 'Duodenum', 'Hepatic Vessel',
+                'Right Lung', 'Left Lung', 'Colon', 'Intestine', 'Rectum', 
+                'Bladder', 'Prostate', 'Left Head of Femur', 'Right Head of Femur', 'Celiac Truck',
+                'Kidney Tumor', 'Liver Tumor', 'Pancreas Tumor', 'Hepatic Vessel Tumor', 'Lung Tumor', 'Colon Tumor', 'Kidney Cyst']
 
-TEMPLATE = {
-    '10_03': [2, 5], # post process
-    '10_06': [8],
-    '10_07': [3, 6], # post process
-    '10_08': [4, 7], # post process
+TEMPLATE={
+    '01': [1,2,3,4,5,6,7,8,9,10,11,12,13,14],
+    '01_2': [1,3,4,5,6,7,11,14],
+    '02': [1,3,4,5,6,7,11,14],
+    '03': [6],
+    '04': [6,27], # post process
+    '05': [2,3,26,32], # post process
+    '06': [1,2,3,4,6,7,11,16,17],
+    '07': [6,1,3,2,7,4,5,11,14,18,19,12,13,20,21,23,24],
+    '08': [6, 2, 3, 1, 11],
+    '09': [1,2,3,4,5,6,7,8,9,11,12,13,14,21,22],
+    '12': [6,21,16,17,2,3],  
+    '13': [6,2,3,1,11,8,9,7,4,5,12,13,25], 
+#    '14': [11, 28],
+    '10_03': [6, 27], # post process
+    '10_06': [30],
+    '10_07': [11, 28], # post process
+    '10_08': [15, 29], # post process
     '10_09': [1],
-    '10_10': [9],
+    '10_10': [31],
+    '14':[1,2,3,4,6,7,11],
+#    '15': [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17] ## total segmentation
+    '21':[1,2,3,6,11]
 }
 
-NUM_CLASS = 9
+# TEMPLATE = {
+#     '10_03': [2, 5], # post process
+#     '10_06': [8],
+#     '10_07': [3, 6], # post process
+#     '10_08': [4, 7], # post process
+#     '10_09': [1],
+#     '10_10': [9],
+# }
+
+TUMOR_ORGAN = {
+    'Kidney Tumor': [2,3], 
+    'Liver Tumor': [6], 
+    'Pancreas Tumor': [11], 
+    'Hepatic Vessel Tumor': [15], 
+    'Lung Tumor': [16,17], 
+    'Colon Tumor': [18], 
+    'Kidney Cyst': [2,3]
+}
+
+MERGE_MAPPING_v1 = {
+    '01': [(1,1), (2,2), (3,3), (4,4), (5,5), (6,6), (7,7), (8,8), (9,9), (10,10), (11,11), (12,12), (13,13), (14,14)],
+    '02': [(1,1), (3,3), (4,4), (5,5), (6,6), (7,7), (11,11), (14,14)],
+    '03': [(6,1)],
+    '04': [(6,1), (27,2)],
+    '05': [(2,1), (3,1), (26, 2), (32,3)],
+    '06': [(1,1), (2,2), (3,3), (4,4), (6,5), (7,6), (11,7), (16,8), (17,9)],
+    '07': [(1,2), (2,4), (3,3), (4,6), (5,7), (6,1), (7,5), (11,8), (12,12), (13,12), (14,9), (18,10), (19,11), (20,13), (21,14), (23,15), (24,16)],
+    '08': [(1,3), (2,2), (3,2), (6,1), (11,4)],
+    '09': [(1,1), (2,2), (3,3), (4,4), (5,5), (6,6), (7,7), (8,8), (9,9), (11,10), (12,11), (13,12), (14,13), (21,14), (22,15)],
+    '10_03': [(6,1), (27,2)],
+    '10_06': [(30,1)],
+    '10_07': [(11,1), (28,2)],
+    '10_08': [(15,1), (29,2)],
+    '10_09': [(1,1)],
+    '10_10': [(31,1)],
+    '12': [(2,4), (3,4), (21,2), (6,1), (16,3), (17,3)],  
+    '13': [(1,3), (2,2), (3,2), (4,8), (5,9), (6,1), (7,7), (8,5), (9,6), (11,4), (12,10), (13,11), (25,12)],
+    '15': [(1,1), (2,2), (3,3), (4,4), (5,5), (6,6), (7,7), (8,8), (9,9), (10,10), (11,11), (12,12), (13,13), (14,14), (16,16), (17,17), (18,18)],
+    '21': [(6,1),(2,2),(3,2),(1,3),(11,4)]
+}
+
+NUM_CLASS = 32
 
 def get_key(name):
     ## input: name
@@ -64,6 +132,25 @@ def get_key(name):
     dataset_index = int(name[0:2])
     if dataset_index == 10:
         template_key = name[0:2] + '_' + name[17:19]
+    else:
+        template_key = name[0:2]
+    return template_key
+
+
+def get_key_2(name):
+    ## input: name
+    ## output: the corresponding key
+    dataset_index = int(name[0:2])
+    if dataset_index == 10:
+        template_key = name[0:2] + '_' + name[17:19]
+
+    elif dataset_index == 1:
+        if int(name[-2:]) >= 60:
+            template_key = '01_2'
+        else:
+            template_key = '01'
+    
+
     else:
         template_key = name[0:2]
     return template_key
@@ -94,6 +181,39 @@ def dice_score(preds, labels, spe_sen=False):  # on GPU
         return dice, recall, precision, specificity
     else:
         return dice, recall, precision
+    
+def dice_score_2(preds, labels, spe_sen=False):  # on GPU
+    ### preds: w,h,d; label: w,h,d
+    assert preds.shape == labels.shape, "predict & target batch size don't match"
+    predict = preds.contiguous().view(1, -1)
+    target = labels.contiguous().view(1, -1)
+
+    tp = torch.sum(torch.mul(predict, target))
+
+    den = torch.sum(predict) + torch.sum(target) + 1
+
+    dice = 2 * tp / den
+
+    return dice
+
+def dice_score_np(preds, labels, spe_sen=False):  # on CPU with NumPy
+    ### preds: w,h,d; labels: w,h,d
+    assert preds.shape == labels.shape, "predict & target batch size don't match"
+    
+    # Flattening the arrays
+    predict = preds.ravel()
+    target = labels.ravel()
+
+    # True positives
+    tp = np.sum(predict * target)
+
+    # Denominator: sum of predicted and target pixels + 1 to avoid division by zero
+    den = np.sum(predict) + np.sum(target) + 1
+
+    # Dice score calculation
+    dice = 2 * tp / den
+
+    return dice
 
 class LoadImageh5d(MapTransform):
     def __init__(
@@ -379,6 +499,91 @@ def get_train_val_data_loader(args):
 
     return train_loader,val_loader,train_sampler,val_sampler
 
+def get_test_data_loader(args):
+
+    test_transforms = Compose(
+        [
+            LoadImaged(keys=["image"]),
+            AddChanneld(keys=["image"]),
+            Orientationd(keys=["image"], axcodes="RAS"),
+            Spacingd(
+                keys=["image"],
+                pixdim=(args.space_x, args.space_y, args.space_z),
+                mode=("bilinear"),
+            ), # process h5 to here
+            ScaleIntensityRanged(
+                keys=["image"],
+                a_min=args.a_min,
+                a_max=args.a_max,
+                b_min=args.b_min,
+                b_max=args.b_max,
+                clip=True,
+            ),
+            CropForegroundd(keys=["image"], source_key="image"),
+            ToTensord(keys=["image"]),
+        ]
+    )
+
+    #get the dictionary of the files from the files list.
+    test_img = []
+    test_name = []
+    for item in args.dataset_list:
+        for line in open(args.data_txt_path + item +'_test.txt'):
+            name = line.strip().split()[0].split('.')[0]
+            test_img.append(args.data_root_path + line.strip().split()[0])
+            test_name.append(name)
+    data_dicts_test = [{'image': image,'name': name}
+                for image, name in zip(test_img, test_name)]
+    print('test len {}'.format(len(data_dicts_test)))
+
+    test_dataset = Dataset(data=data_dicts_test, transform=test_transforms)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8, collate_fn=list_data_collate)
+    return test_loader, test_transforms
+
+def get_test_txt_loader(args):
+
+    test_transforms = Compose(
+        [
+            LoadImaged(keys=["image"]),
+            AddChanneld(keys=["image"]),
+            Orientationd(keys=["image"], axcodes="RAS"),
+            Spacingd(
+                keys=["image"],
+                pixdim=(args.space_x, args.space_y, args.space_z),
+                mode=("bilinear"),
+            ), # process h5 to here
+            ScaleIntensityRanged(
+                keys=["image"],
+                a_min=args.a_min,
+                a_max=args.a_max,
+                b_min=args.b_min,
+                b_max=args.b_max,
+                clip=True,
+            ),
+            CropForegroundd(keys=["image"], source_key="image"),
+            ToTensord(keys=["image"]),
+        ]
+    )
+
+    #get the dictionary of the files from the files list.
+    test_img = []
+    test_name = []
+    test_prompt = []
+    for item in args.dataset_list:
+        for line in open(args.data_txt_path + item +'_test.txt'):
+            name = line.strip().split()[0].split('.')[0]
+            test_img.append(args.data_root_path + line.strip().split()[0])
+            test_name.append(name)
+            test_prompt.append(get_key(name))
+    data_dicts_test = [{'image': image,'name': name, 'prompt':prompt}
+                for image, name, prompt in zip(test_img, test_name, test_prompt)]
+    print('test len {}'.format(len(data_dicts_test)))
+
+    test_dataset = Dataset(data=data_dicts_test, transform=test_transforms)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=list_data_collate)
+    return test_loader, test_transforms
+
+
 def get_train_val_txt_loader(args):
 
     train_transforms = Compose(
@@ -511,6 +716,156 @@ def get_train_val_txt_loader(args):
 
     return train_loader,val_loader,train_sampler,val_sampler
 
+def keep_topk_largest_connected_object(npy_mask, k, area_least, out_mask, out_label):
+    labels_out = cc3d.connected_components(npy_mask, connectivity=26)
+    areas = {}
+    for label, extracted in cc3d.each(labels_out, binary=True, in_place=True):
+        areas[label] = fastremap.foreground(extracted)
+    candidates = sorted(areas.items(), key=lambda item: item[1], reverse=True)
+
+    for i in range(min(k, len(candidates))):
+        if candidates[i][1] > area_least:
+            out_mask[labels_out == int(candidates[i][0])] = out_label
+
+def merge_and_top_organ(pred_mask,organ_list):
+
+    out_mask = np.zeros(pred_mask.shape[1:],np.uint8)
+    for organ in organ_list:
+        out_mask = np.logical_or(out_mask,pred_mask[organ-1])
+    
+    out_mask = extract_topk_largest_candidates(out_mask,len(organ_list))
+    return out_mask
+
+def organ_region_filter_out(tumor_mask, organ_mask):
+    ## dialtion
+    organ_mask = ndimage.binary_closing(organ_mask, structure=np.ones((5,5,5)))
+    organ_mask = ndimage.binary_dilation(organ_mask, structure=np.ones((5,5,5)))
+    ## filter out
+    tumor_mask = organ_mask * tumor_mask
+
+    return tumor_mask
+
+def PSVein_post_process(PSVein_mask, pancreas_mask):
+    xy_sum_pancreas = pancreas_mask.sum(axis=0).sum(axis=0)
+    z_non_zero = np.nonzero(xy_sum_pancreas)
+    z_value = np.min(z_non_zero) ## the down side of pancreas
+    new_PSVein = PSVein_mask.copy()
+    new_PSVein[:,:,:z_value] = 0
+    return new_PSVein
+
+def extract_topk_largest_candidates(npy_mask, organ_num, area_least=0):
+    ## npy_mask: w, h, d
+    ## organ_num: the maximum number of connected component
+    out_mask = np.zeros(npy_mask.shape, np.uint8)
+    t_mask = npy_mask.copy()
+    keep_topk_largest_connected_object(t_mask, organ_num, area_least, out_mask, 1)
+
+    return out_mask
+
+def organ_post_process(pred_mask,organ_list):
+
+    post_pred_mask = np.zeros(pred_mask.shape)
+    
+    for organ in organ_list:
+
+        if organ == 11:
+
+            post_pred_mask[10] = extract_topk_largest_candidates(pred_mask[10],1)
+
+            if 10 in organ_list:
+
+                post_pred_mask[9] = PSVein_post_process(pred_mask[9],post_pred_mask[10])
+        
+        elif organ in [1,2,3,4,5,6,7,8,9,12,13,14,18,19,20,21,22,23,24,25]:
+
+            post_pred_mask[organ-1] = extract_topk_largest_candidates(pred_mask[organ-1],1)
+        
+        elif organ in [26,27]: #for kindey and liver using no tumor predictions for help
+
+            organ_mask = merge_and_top_organ(pred_mask,TUMOR_ORGAN[ORGAN_NAME[organ-1]])
+            post_pred_mask[organ-1] = organ_region_filter_out(pred_mask[organ-1],organ_mask)
+        
+        else:
+
+            post_pred_mask[organ-1] = pred_mask[organ-1]
+    
+    return post_pred_mask
+
+def merge_label_v1(pred_mask,name):
+
+    C,H,W,D = pred_mask.shape
+    merged_label_v1 = np.zeros((1,H,W,D))
+    template_key = get_key_2(name)
+    transfer_mapping_v1 = MERGE_MAPPING_v1[template_key]
+    organ_index = []
+    for item in transfer_mapping_v1:
+        src, tgt = item
+        merged_label_v1[0][pred_mask[src-1]==1] = tgt
+    
+    return merged_label_v1
+
+def save_result(batch,input_transform,save_dir):
+
+    post_transforms = Compose([
+        Invertd(
+            keys = ['result'],
+            transform = input_transform,
+            orig_keys = ['image'],
+            nearest_interp=True,
+            to_tensor=True
+        ),
+        SaveImaged(
+            keys='result',
+            meta_keys='image_meta_dict',
+            output_dir = save_dir,
+            output_ext = '.nii.gz',
+            output_postfix = '',
+            print_log = False,
+            output_dtype=np.uint8,
+            separate_folder=False,
+            resample=False
+        )
+    ])
+
+    batch = [post_transforms(i) for i in decollate_batch(batch)]
+
+#save organs in seperate folder for the given prediction 
+def save_result_organwise(batch, save_dir, input_transform, organ_list):
+    ### function: save the prediction result into dir
+    ## Input
+    ## batch: the batch dict output from the monai dataloader
+    ## one_channel_label: the predicted reuslt with same shape as label
+    ## save_dir: the directory for saving
+    ## input_transform: the dataloader transform
+    results = batch['results']
+    name = batch['name']
+    print(save_dir)
+    
+    for organ in organ_list:
+
+        batch[ORGAN_NAME[organ-1]] = results[:,organ-1].unsqueeze(1)
+        # print(batch[ORGAN_NAME[organ-1]].shape)
+        post_transforms = Compose([
+            Invertd(
+                keys=[ORGAN_NAME[organ-1]], #, 'split_label'
+                transform=input_transform,
+                orig_keys=['image'],
+                nearest_interp=True,
+                to_tensor=True,
+            ),
+            SaveImaged(keys=ORGAN_NAME[organ-1], 
+                    meta_keys="image_meta_dict" , 
+                    output_dir=save_dir,
+                    output_ext = '.nii.gz',
+                    output_postfix=ORGAN_NAME[organ-1],
+                    print_log = False, 
+                    resample=False
+            ),
+        ])
+        
+        _ = [post_transforms(i) for i in decollate_batch(batch)]
+
+
 class BinaryDiceLoss(nn.Module):
     def __init__(self, smooth=1e-5):
         super(BinaryDiceLoss, self).__init__()
@@ -548,6 +903,12 @@ class DiceLoss(nn.Module):
             dataset_index = int(name[b][0:2])
             if dataset_index == 10:
                 template_key = name[b][0:2] + '_' + name[b][17:19]
+            elif dataset_index == 1:
+                if int(name[b][-2:]) >= 60:
+                    template_key = '01_2'
+                else:
+                    template_key = '01'
+
             else:
                 template_key = name[b][0:2]
 
@@ -581,6 +942,14 @@ class Multi_BCELoss(nn.Module):
             dataset_index = int(name[b][0:2])
             if dataset_index == 10:
                 template_key = name[b][0:2] + '_' + name[b][17:19]
+
+            elif dataset_index == 1:
+                if int(name[b][-2:]) >= 60:
+                    template_key = '01_2'
+                else:
+                    template_key = '01'
+        
+
             else:
                 template_key = name[b][0:2]
             organ_list = TEMPLATE[template_key]
