@@ -3,12 +3,12 @@ import nibabel as nib
 import warnings
 warnings.filterwarnings("ignore")
 
-from gg_tools import get_train_val_data_loader, get_train_val_txt_loader, dice_score, 
-                    TEMPLATE, get_key_2, NUM_CLASS, ORGAN_NAME, organ_post_process, dice_score_np
+from gg_tools import get_train_val_data_loader, get_train_val_txt_loader, dice_score, TEMPLATE, get_key_2, NUM_CLASS, ORGAN_NAME, organ_post_process, dice_score_np
 
 import torch
 import os
 import numpy as np
+import argparse
 
 from monai.inferers import sliding_window_inference
 from tqdm import tqdm
@@ -90,18 +90,20 @@ def process(args):
                             precomputed_prompt_path=args.precomputed_prompt_path)
     else:
         
-        clip_model = Universal_model(img_size=(args_clip.roi_x, args_clip.roi_y, args_clip.roi_z),
+        clip_model = Universal_model(img_size=(args.roi_x, args.roi_y, args.roi_z),
                 in_channels=1,
                 out_channels=32,
-                backbone=args_clip.backbone,
-                encoding=args_clip.trans_encoding
+                backbone=args.backbone,
+                encoding=args.trans_encoding
         )
 
     ##load model weights
     
-    checkpoint = torch.load(args_film.pretrain)
+    checkpoint = torch.load(args.pretrain)
     store_dict = model.state_dict()
     load_dict = checkpoint['net']
+
+    missing_wts_params = []
 
     for key,value in load_dict.items():
 
@@ -128,11 +130,11 @@ def process(args):
         train_loader, val_loader,train_sampler, val_sampler = get_train_val_data_loader(args)
 
     
-    avg_organ_dice = validation_postprocess(film_model,film_val_loader,args_film)
+    avg_organ_dice = validation_postprocess(model,val_loader,args)
 
     print(avg_organ_dice)
 
-def main()
+def main():
 
     args = SimpleNamespace(
         space_x = 1.5,
@@ -170,9 +172,9 @@ def main()
     parser = argparse.ArgumentParser(description = 'Some arguments to take')
     parser.add_argument('--log_name', default='swinunet', help='The path resume from checkpoint')
     parser.add_argument('--precomputed_prompt_path',default='./pretrained_weights/embeddings_template_flare.pkl',help='the text embeddings to use')
-    parser.add_argument('--dataset_list',default=['PAOTtest'],help='The dataset to be used, its txt file with location')
+    parser.add_argument('--dataset_list', nargs='+', default=['PAOTtest'], help='The dataset to be used, its txt file with location')
     parser.add_argument('--file_name',default='your_test.txt',help='where the results will be stored')
-    parser.add_argument('--pretrain',default='./out/deep_film_org_setting/epoch_360.pth')
+    parser.add_argument('--pretrain',default='./out/deep_film_org_setting/epoch_380.pth')
     parser.add_argument('--model_type',default='film')
 
     parsed_args = parser.parse_args()
@@ -184,7 +186,7 @@ def main()
 
     process(args=args)
 
-def __init__ =='main':
+if __name__ == '__main__':
 
     main()
 
