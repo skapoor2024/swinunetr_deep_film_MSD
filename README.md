@@ -219,5 +219,6 @@ Here the loader will take `_test2.txt` files. These files dont have their ground
 - Ensure you have the necessary computational resources for training and evaluation.
 - train_deep_film_2 contains fixes for abritrary text input
 - train_deep_film_2 uses film module with pre residual normalization and residual layer.
+- train_val train files are with different custom data loader than normal train files. The noraml train files brought more accuracy due to uniform sampling
 
 For more detailed information on the Universal CLIP architecture, please refer to the original paper.
