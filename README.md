@@ -2,6 +2,69 @@
 
 This project implements a CLIP-Deep-Driven FiLM and CLIP-Deep-FIlM-2 (Feature-wise Linear Modulation) model for image-text tasks. It builds upon the Universal CLIP architecture, using film-based modules to modulate image embeddings at each decoder with embeddings from the text-based decoder.
 
+## CLIP-Deep-Driven Architecture
+The architecture for train_deep_film.py
+```mermaid
+flowchart TD
+   Input[Input Image] --> SwinViT[SwinViT Transformer]
+   Input --> Enc0[Encoder 1]
+   
+   subgraph Text_Processing
+      Prompt[Text Prompt] --> CLIP[CLIP Text Encoder]
+      CLIP --> TextEmb[Text Embeddings]
+   end
+
+   SwinViT --> HS0[Hidden State 0]
+   SwinViT --> HS1[Hidden State 1]
+   SwinViT --> HS2[Hidden State 2]
+   SwinViT --> HS3[Hidden State 3]
+   SwinViT --> HS4[Hidden State 4]
+
+   HS0 --> Enc1[Encoder 2]
+   HS1 --> Enc2[Encoder 3]
+   HS2 --> Enc3[Encoder 4]
+   HS4 --> Dec4[Encoder 10]
+
+   Dec4 --> FilmBlock4[FiLM Block 4]
+   TextEmb --> FilmBlock4
+   
+   FilmBlock4 --> Dec3[Decoder 5]
+   HS3 --> Dec3
+
+   Dec3 --> FilmBlock3[FiLM Block 3]
+   TextEmb --> FilmBlock3
+   
+   FilmBlock3 --> Dec2[Decoder 4]
+   Enc3 --> Dec2
+
+   Dec2 --> FilmBlock2[FiLM Block 2]
+   TextEmb --> FilmBlock2
+   
+   FilmBlock2 --> Dec1[Decoder 3]
+   Enc2 --> Dec1
+
+   Dec1 --> FilmBlock1[FiLM Block 1]
+   TextEmb --> FilmBlock1
+   
+   FilmBlock1 --> Dec0[Decoder 2]
+   Enc1 --> Dec0
+
+   Dec0 --> FinalDec[Decoder 1]
+   Enc0 --> FinalDec
+
+   FinalDec --> Output[Output Logits]
+
+   style Input fill:#f9f,stroke:#333,stroke-width:2px
+   style Output fill:#9ff,stroke:#333,stroke-width:2px
+   style TextEmb fill:#ff9,stroke:#333,stroke-width:2px
+   
+   end
+
+
+## Deep_film_2 Architecture
+
+
+
 ## Setup
 
 The required environment files are present inside the env_file folder.
@@ -105,5 +168,6 @@ Here the loader will take _test2.txt files. These files dont have their ground t
 - The Deep FiLM model modulates image embeddings using text-based decoder outputs.
 - Ensure you have the necessary computational resources for training and evaluation.
 - train_deep_film_2 contains fixes for abritrary text input
+- train_deep_film_2 uses film module with pre residual normalization and residual layer.
 
 For more detailed information on the Universal CLIP architecture, please refer to the original paper.
