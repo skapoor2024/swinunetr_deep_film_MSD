@@ -216,9 +216,9 @@ Here the loader will take `_test2.txt` files. These files dont have their ground
 
 Predictions of train_deep_film or CLIP-DEEP-Driven Model
 
-![12-CT-ORG](images/13_AbdomenCT-12organ_label_Organ12_0020_axial_slice_106_comparison 1.png)
-![KiTS](images/05_KiTS_label_label0071_axial_slice_161_comparison 1.png)
-![AMOS](images/09_AMOS_label_amos_0111_axial_slice_305_comparison 1.png)
+![12-CT-ORG](images/13_AbdomenCT-12organ_label_Organ12_0020_axial_slice_106_comparison1.png)
+![KiTS](images/05_KiTS_label_label0071_axial_slice_161_comparison1.png)
+![AMOS](images/09_AMOS_label_amos_0111_axial_slice_305_comparison1.png)
 
 ## Notes
 
