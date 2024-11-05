@@ -1,0 +1,9 @@
+Saved the output generated files from the model_test.py files
+clip-deep-driven - ours
+uni - CLIP universal seg paper
+swinunetr - monai swinunetr
+unetr - monai unetr
+
+PAOT or other folder denote the datasetlist files used for prediction
+PAOT is the orignal split
+PAOT2 contains the test dataset without PancreasCT , CHOAS and CT ORG

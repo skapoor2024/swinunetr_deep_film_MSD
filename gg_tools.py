@@ -29,7 +29,8 @@ from monai.transforms import (
 
 import h5py
 import numpy as np
-
+import os
+import nibabel as nib
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
@@ -104,6 +105,7 @@ TUMOR_ORGAN = {
 
 MERGE_MAPPING_v1 = {
     '01': [(1,1), (2,2), (3,3), (4,4), (5,5), (6,6), (7,7), (8,8), (9,9), (10,10), (11,11), (12,12), (13,13), (14,14)],
+    '01_2': [(1,1), (2,2), (3,3), (4,4), (5,5), (6,6), (7,7), (8,8), (9,9), (10,10), (11,11), (12,12), (13,13), (14,14)],
     '02': [(1,1), (3,3), (4,4), (5,5), (6,6), (7,7), (11,11), (14,14)],
     '03': [(6,1)],
     '04': [(6,1), (27,2)],
@@ -528,7 +530,7 @@ def get_test_data_loader(args):
     test_img = []
     test_name = []
     for item in args.dataset_list:
-        for line in open(args.data_txt_path + item +'_test.txt'):
+        for line in open(args.data_txt_path + item +'_test2.txt'):
             name = line.strip().split()[0].split('.')[0]
             test_img.append(args.data_root_path + line.strip().split()[0])
             test_name.append(name)
@@ -537,7 +539,7 @@ def get_test_data_loader(args):
     print('test len {}'.format(len(data_dicts_test)))
 
     test_dataset = Dataset(data=data_dicts_test, transform=test_transforms)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8, collate_fn=list_data_collate)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, collate_fn=list_data_collate)
     return test_loader, test_transforms
 
 def get_test_txt_loader(args):
@@ -570,7 +572,7 @@ def get_test_txt_loader(args):
     test_name = []
     test_prompt = []
     for item in args.dataset_list:
-        for line in open(args.data_txt_path + item +'_test.txt'):
+        for line in open(args.data_txt_path + item +'_test2.txt'):
             name = line.strip().split()[0].split('.')[0]
             test_img.append(args.data_root_path + line.strip().split()[0])
             test_name.append(name)
@@ -580,8 +582,110 @@ def get_test_txt_loader(args):
     print('test len {}'.format(len(data_dicts_test)))
 
     test_dataset = Dataset(data=data_dicts_test, transform=test_transforms)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=list_data_collate)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, collate_fn=list_data_collate)
     return test_loader, test_transforms
+
+def get_val_txt_loader(args):
+
+    val_transforms = Compose(
+        [
+            LoadImageh5d(keys=["image", "label"]),
+            AddChanneld(keys=["image", "label"]),
+            Orientationd(keys=["image", "label"], axcodes="RAS"),
+            # ToTemplatelabeld(keys=['label']),
+            # RL_Splitd(keys=['label']),
+            Spacingd(
+                keys=["image", "label"],
+                pixdim=(args.space_x, args.space_y, args.space_z),
+                mode=("bilinear", "nearest"),
+            ), # process h5 to here
+            ScaleIntensityRanged(
+                keys=["image"],
+                a_min=args.a_min,
+                a_max=args.a_max,
+                b_min=args.b_min,
+                b_max=args.b_max,
+                clip=True,
+            ),
+            CropForegroundd(keys=["image", "label", "post_label"], source_key="image"),
+            ToTensord(keys=["image", "label", "post_label"]),
+        ]
+    )
+
+    val_img = []
+    val_lbl = []
+    val_post_lbl = []
+    val_name = []
+    val_prompts = []
+    for item in args.dataset_list:
+        for line in open(args.data_txt_path + item +'_val.txt'):
+            name = line.strip().split()[1].split('.')[0]
+            val_img.append(args.data_root_path + line.strip().split()[0])
+            val_lbl.append(args.data_root_path + line.strip().split()[1])
+            val_post_lbl.append(args.data_root_path + name.replace('label', 'post_label') + '.h5')
+            val_name.append(name)
+            val_prompts.append(get_key(name))
+
+    data_dicts_val = [{'image': image, 'label': label, 'post_label': post_label, 'name': name,'prompt':prompt}
+                for image, label, post_label, name, prompt in zip(val_img, val_lbl, val_post_lbl, val_name, val_prompts)]
+    print('val len {}'.format(len(data_dicts_val)))
+
+    val_dataset = Dataset(data=data_dicts_val, transform=val_transforms)
+    val_sampler = None
+    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=(val_sampler is None), num_workers=args.num_workers, collate_fn=custom_nested_collate_2_val_test,sampler = val_sampler)
+
+    return val_loader,val_transforms
+
+def get_test_loader(args):
+
+    val_transforms = Compose(
+        [
+            LoadImageh5d(keys=["image", "label"]),
+            AddChanneld(keys=["image", "label"]),
+            Orientationd(keys=["image", "label"], axcodes="RAS"),
+            # ToTemplatelabeld(keys=['label']),
+            # RL_Splitd(keys=['label']),
+            Spacingd(
+                keys=["image", "label"],
+                pixdim=(args.space_x, args.space_y, args.space_z),
+                mode=("bilinear", "nearest"),
+            ), # process h5 to here
+            ScaleIntensityRanged(
+                keys=["image"],
+                a_min=args.a_min,
+                a_max=args.a_max,
+                b_min=args.b_min,
+                b_max=args.b_max,
+                clip=True,
+            ),
+            CropForegroundd(keys=["image", "label", "post_label"], source_key="image"),
+            ToTensord(keys=["image", "label", "post_label"]),
+        ]
+    )
+
+    val_img = []
+    val_lbl = []
+    val_post_lbl = []
+    val_name = []
+    val_prompts = []
+    for item in args.dataset_list:
+        for line in open(args.data_txt_path + item +'_test.txt'):
+            name = line.strip().split()[1].split('.')[0]
+            val_img.append(args.data_root_path + line.strip().split()[0])
+            val_lbl.append(args.data_root_path + line.strip().split()[1])
+            val_post_lbl.append(args.data_root_path + name.replace('label', 'post_label') + '.h5')
+            val_name.append(name)
+            val_prompts.append(get_key(name))
+
+    data_dicts_val = [{'image': image, 'label': label, 'post_label': post_label, 'name': name,'prompt':prompt}
+                for image, label, post_label, name, prompt in zip(val_img, val_lbl, val_post_lbl, val_name, val_prompts)]
+    print('val len {}'.format(len(data_dicts_val)))
+
+    val_dataset = Dataset(data=data_dicts_val, transform=val_transforms)
+    val_sampler = None
+    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=(val_sampler is None), num_workers=args.num_workers, collate_fn=custom_nested_collate_2_val_test,sampler = val_sampler)
+
+    return val_loader,val_transforms
 
 
 def get_train_val_txt_loader(args):
@@ -791,6 +895,90 @@ def organ_post_process(pred_mask,organ_list):
     
     return post_pred_mask
 
+def debug_merge_process(data, name, stage="unknown"):
+    """
+    Debug helper to track data transformations during merge process
+    Args:
+        data: Input data array (ground truth or predictions)
+        name: Name of the case being processed
+        stage: String identifier for the processing stage
+    """
+    print(f"\n=== Debug Info for {stage} ===")
+    print(f"Data shape: {data.shape}")
+    print(f"Data type: {data.dtype}")
+    print(f"Unique values: {np.unique(data)}")
+    print(f"Min value: {data.min()}")
+    print(f"Max value: {data.max()}")
+    
+    # Check if data matches expected format
+    if len(data.shape) == 4:
+        C, H, W, D = data.shape
+        print(f"Number of channels (C): {C}")
+        print(f"Expected format: (C,H,W,D) = ({C},{H},{W},{D})")
+        
+        # Check if values are binary for each channel
+        for i in range(C):
+            unique_vals = np.unique(data[i])
+            print(f"Channel {i} unique values: {unique_vals}")
+            if not np.array_equal(unique_vals, np.array([0,1])) and not np.array_equal(unique_vals, np.array([0])):
+                print(f"Warning: Channel {i} is not binary!")
+    else:
+        print(f"Warning: Unexpected data shape! Expected 4D array, got {len(data.shape)}D")
+    
+def verify_merge_result(original, merged, name, template_key):
+    """
+    Verify the correctness of merge operation
+    Args:
+        original: Original multi-channel mask
+        merged: Merged single-channel mask
+        name: Case name
+        template_key: Template key used for merging
+    """
+    print("\n=== Merge Verification ===")
+    print(f"Template Key: {template_key}")
+    print(f"Original shape: {original.shape}")
+    print(f"Merged shape: {merged.shape}")
+    
+    # Verify mapping
+    transfer_mapping = MERGE_MAPPING_v1[template_key]
+    expected_values = set(tgt for _, tgt in transfer_mapping)
+    actual_values = set(np.unique(merged))
+    
+    print(f"Expected values after merge: {sorted(expected_values)}")
+    print(f"Actual values after merge: {sorted(actual_values)}")
+    
+    # Check for missing or unexpected values
+    missing = expected_values - actual_values
+    unexpected = actual_values - expected_values - {0}  # 0 is background
+    
+    if missing:
+        print(f"Warning: Missing expected values: {missing}")
+    if unexpected:
+        print(f"Warning: Unexpected values present: {unexpected}")
+
+def modified_merge_label_v1(pred_mask, name):
+    """
+    Modified merge function with debugging
+    """
+    debug_merge_process(pred_mask, name, "Pre-merge")
+    
+    C, H, W, D = pred_mask.shape
+    merged_label_v1 = np.zeros((1, H, W, D))
+    template_key = get_key_2(name)
+    transfer_mapping_v1 = MERGE_MAPPING_v1[template_key]
+    
+    for item in transfer_mapping_v1:
+        src, tgt = item
+        # Add debug print for each mapping
+        print(f"Processing mapping {src} -> {tgt}")
+        print(f"Source channel stats: min={pred_mask[src-1].min()}, max={pred_mask[src-1].max()}")
+        merged_label_v1[0][pred_mask[src-1] == 1] = tgt
+    
+    debug_merge_process(merged_label_v1, name, "Post-merge")
+    verify_merge_result(pred_mask, merged_label_v1, name, template_key)
+    
+    return merged_label_v1
+
 def merge_label_v1(pred_mask,name):
 
     C,H,W,D = pred_mask.shape
@@ -828,6 +1016,96 @@ def save_result(batch,input_transform,save_dir):
     ])
 
     batch = [post_transforms(i) for i in decollate_batch(batch)]
+
+def save_result_2(batch, test_transform, save_dir):
+    """
+    Save prediction results with original spacing and origin.
+    
+    Args:
+        batch: Dictionary containing 'image', 'result', and 'name' keys
+        test_transform: Test transform pipeline used during data loading
+        save_dir: Directory to save the results
+        
+    Returns:
+        None
+    """
+    # Create save directory if it doesn't exist
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # Extract original image metadata before any transforms
+    orig_img = nib.load(batch['image_meta_dict']['filename_or_obj'][0])
+    original_spacing = orig_img.header.get_zooms()[:3]
+    original_affine = orig_img.affine.copy()
+    
+    # Create a transform to revert back to original spacing
+    revert_spacing = Compose([
+        Spacingd(
+            keys=["result"],
+            pixdim=original_spacing,
+            mode="nearest",
+            recompute_affine=True
+        )
+    ])
+    
+    try:
+        # Process each item in batch
+        for item in decollate_batch(batch):
+            # Ensure prediction is detached from computation graph
+            if torch.is_tensor(item["result"]):
+                item["result"] = item["result"].detach()
+            
+            # Remove batch dimension if present
+            if len(item["result"].shape) == 5:
+                item["result"] = item["result"].squeeze(0)
+            elif len(item["result"].shape) == 4:
+                item["result"] = item["result"].squeeze()
+                
+            # Add channel dimension if needed
+            if len(item["result"].shape) == 3:
+                item["result"] = item["result"][None]
+            
+            # Add necessary metadata for spacing transform
+            item["result_meta_dict"] = {
+                "affine": original_affine,
+                "original_affine": original_affine,
+                "spatial_shape": item["result"].shape[1:],
+            }
+            
+            # Get the filename
+            name = item["name"][0] if isinstance(item["name"], (list, tuple)) else item["name"]
+            base_name = os.path.basename(name)
+            if '.' in base_name:
+                base_name = base_name.split('.')[0]
+            
+            # Convert to numpy while preserving channel dimension
+            result_data = item["result"].cpu().numpy()
+            
+            # Create NIfTI image with original affine
+            result_img = nib.Nifti1Image(result_data[0], original_affine)  # Remove channel dim
+            
+            # Set header information
+            header = result_img.header
+            header.set_zooms(original_spacing)
+            header.set_data_dtype(np.uint8)
+            
+            # Save the image
+            output_path = os.path.join(save_dir, f"{base_name}.nii.gz")
+            nib.save(result_img, output_path)
+            
+            # Verify the saved file
+            saved_img = nib.load(output_path)
+            if not np.allclose(saved_img.header.get_zooms()[:3], original_spacing):
+                print(f"Warning: Spacing mismatch for {base_name}")
+                print(f"Expected: {original_spacing}")
+                print(f"Got: {saved_img.header.get_zooms()[:3]}")
+            if not np.allclose(saved_img.affine[:3, 3], original_affine[:3, 3]):
+                print(f"Warning: Origin mismatch for {base_name}")
+                print(f"Expected: {original_affine[:3, 3]}")
+                print(f"Got: {saved_img.affine[:3, 3]}")
+            
+    except Exception as e:
+        print(f"Error during saving: {str(e)}")
+        raise
 
 #save organs in seperate folder for the given prediction 
 def save_result_organwise(batch, save_dir, input_transform, organ_list):
@@ -962,4 +1240,60 @@ class Multi_BCELoss(nn.Module):
         total_loss = torch.stack(total_loss)
 
         return total_loss.sum()/total_loss.shape[0]
+
+def process_ground_truth(gt_data, name):
+    """
+    Process ground truth data properly handling 255 as "don't care" labels
+    Args:
+        gt_data: Ground truth data of shape (C,H,W,D)
+        name: Case name for mapping
+    Returns:
+        Merged ground truth with proper label values
+    """
+    C, H, W, D = gt_data.shape
+    merged_label = np.zeros((1, H, W, D))
+    template_key = get_key_2(name)
+    transfer_mapping = MERGE_MAPPING_v1[template_key]
+    
+    # Process only valid channels (not 255)
+    for src, tgt in transfer_mapping:
+        channel_idx = src - 1
+        channel_data = gt_data[channel_idx]
+        
+        # Check if this organ exists in this case
+        if 255 not in np.unique(channel_data):
+            # Only merge if the organ exists (not a "don't care" label)
+            merged_label[0][channel_data == 1] = tgt
+    
+    return merged_label
+
+def debug_label_distribution(gt_data, name):
+    """
+    Debug helper to understand label distribution
+    Args:
+        gt_data: Ground truth data
+        name: Case name
+    """
+    print("\n=== Label Distribution Analysis ===")
+    template_key = get_key_2(name)
+    transfer_mapping = MERGE_MAPPING_v1[template_key]
+    
+    print(f"Template Key: {template_key}")
+    print("Channel analysis:")
+    for src, tgt in transfer_mapping:
+        channel_idx = src - 1
+        channel_data = gt_data[channel_idx]
+        unique_vals = np.unique(channel_data)
+        
+        if 255 in unique_vals:
+            status = "ABSENT (don't care)"
+        elif 1 in unique_vals:
+            status = "PRESENT"
+            pixels = np.sum(channel_data == 1)
+            percentage = (pixels / channel_data.size) * 100
+            status += f" ({pixels} pixels, {percentage:.2f}% of volume)"
+        else:
+            status = "EMPTY"
+            
+        print(f"Organ {src} -> {tgt}: {status}")
 
