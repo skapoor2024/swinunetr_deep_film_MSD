@@ -167,9 +167,6 @@ To evaluate the model, use the `model_test.py` and `model_val.py` script:
 For both test and val the <img,label> pair location must be there in the datase
 
 ```
-python model_test.py --weight <path_to_weights> --model_type film
-```
-```
 Model_val.py —pretrain <your_pretrain_folder> –model_type <model_name> –file_name <file_name_for_result> –datasetlist <txt file containing image_seg_pair of datalist>
 ```
 
@@ -208,15 +205,12 @@ Before evaluation, you need to create a test dataset file:
    ```
    file_path<tab>label
    ```
-   Note: If you don't have labels, you can repeat the same file_path after the tab space for each entry.
-
-
 
 ## Saving Results
 
 To save your prediction results, use the `save_result` function from `gg_tools.py`.
 Or you can use `model_test_save_predictions_final.py`.
-Here the loader will take _test2.txt files. These files dont have their ground truthsSo inside datasetname_test2.txt files, it should contain the names of the predicted files.
+Here the loader will take `_test2.txt` files. These files dont have their ground truths. So inside datasetname_test2.txt files, it should contain the names of the files to be predicted
 
 ## Notes
 
