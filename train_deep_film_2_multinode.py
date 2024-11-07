@@ -149,13 +149,6 @@ def process(args):
         )
 
     model.to(args.device)
-    model.train()
-    if args.dist:
-        model = DistributedDataParallel(
-            model, 
-            device_ids=[args.local_rank],
-            output_device=args.local_rank
-        )
 
     # criterion and optimizer
     # loss_function = DiceCELoss(to_onehot_y=True, softmax=True)
@@ -179,6 +172,14 @@ def process(args):
             args.epoch = states['epoch']
         
         print('success resume from ', args.resume)
+
+    model.train()
+    if args.dist:
+        model = DistributedDataParallel(
+            model, 
+            device_ids=[args.local_rank],
+            output_device=args.local_rank
+        )
 
     torch.backends.cudnn.benchmark = True
 
